@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Care Management & Coordination Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Compact opening view: keep the same design, but bring KPIs into view faster */
+    .header{padding:18px 36px 14px}
+    .header h1{font-size:27px}
+    .eyebrow{margin-bottom:4px}
+    .live-card{padding:9px 14px}
+    .page-nav{padding:10px 36px;top:78px}
+    .page-button{padding:8px 16px}
+    .main{padding:18px 36px 52px}
+    .page-heading{margin-bottom:12px}
+    .page-heading h2{font-size:24px;margin-bottom:4px}
+    .page-heading p{font-size:12px}
+    .kpi-grid{gap:11px;margin-bottom:14px}
+    .kpi-card{min-height:105px;padding:13px 14px;border-radius:14px}
+    .kpi-icon{width:30px;height:30px;font-size:15px;border-radius:9px}
+    .kpi-label{margin-top:8px;font-size:11px}
+    .kpi-value{margin-top:2px;font-size:25px}
+    .kpi-sub{margin-top:3px;font-size:10px}
+    .filter-panel{gap:10px;margin-bottom:16px;padding:12px 14px;border-radius:14px}
+    .filter-group label{font-size:10px}
+    .filter-group input,.filter-group select,.clear-button{height:38px}
+    @media(max-width:900px){.page-nav{top:118px}.main{padding:18px 20px 45px}}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="loadingScreen" class="loading-screen">
+    <div class="spinner"></div>
+    <h2>Care Management & Coordination</h2>
+    <p>Loading dashboard data...</p>
+  </div>
+
+  <div id="errorScreen" class="error-screen hidden">
+    <div class="error-icon">⚠</div>
+    <h2>Dashboard data is unavailable</h2>
+    <p>The review snapshot could not be loaded. Please refresh the page.</p>
+  </div>
+
+  <header id="mainHeader" class="header hidden">
+    <div>
+      <p class="eyebrow">CARE MANAGEMENT & COORDINATION PROGRAM</p>
+      <h1>Operational Dashboard</h1>
+    </div>
+    <div class="live-card">
+      <span class="live-dot"></span>
+      <div>
+        <strong>Live Data</strong>
+        <span id="lastUpdated">Loading...</span>
+      </div>
+    </div>
+  </header>
+
+  <nav id="pageNav" class="page-nav hidden">
+    <button class="page-button active" data-page="patients">Patient List</button>
+    <button class="page-button" data-page="intake">Intake Forms</button>
+    <button class="page-button" data-page="calls">Call Records</button>
+  </nav>
+
+  <main id="mainContent" class="main hidden">
+    <!-- PATIENT LIST -->
+    <section id="patientsPage" class="page-section">
+      <div class="page-heading">
+        <div>
+          <h2>Patient Outreach & Care Management</h2>
+          <p>Population, outreach activity, nurse workload, follow-up and engagement.</p>
+        </div>
+      </div>
+
+      <section id="patientKpis" class="kpi-grid six"></section>
+
+      <section class="filter-panel">
+        <div class="filter-group wide">
+          <label for="patientSearch">Search Patient / Practice / Provider</label>
+          <input id="patientSearch" type="text" placeholder="Search name, practice, provider, ID..." />
+        </div>
+        <div class="filter-group">
+          <label for="patientAcoFilter">ACO</label>
+          <select id="patientAcoFilter"><option value="All">All ACOs</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="patientNurseFilter">Assigned Nurse</label>
+          <select id="patientNurseFilter"><option value="All">All Nurses</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="patientPriorityFilter">Priority</label>
+          <select id="patientPriorityFilter"><option value="All">All Priorities</option></select>
+        </div>
+        <div class="filter-group">
+          <label for="patientStatusFilter">Outreach Status</label>
+          <select id="patientStatusFilter"><option value="All">All Statuses</option></select>
+        </div>
+        <button class="clear-button" id="patientClear">Clear Filters</button>
+      </section>
+
+      <section class="chart-grid">
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Outreach Status — Worked Patients</h3><span>Patients with a recorded status</span></div>
+          <div class="chart-wrap"><canvas id="patientStatusChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Nurse Workload</h3><span>Patients assigned to each nurse</span></div>
+          <div class="chart-wrap"><canvas id="patientNurseChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Care Management Activity by ACO</h3><span>Assigned vs outreach started</span></div>
+          <div class="chart-wrap"><canvas id="patientAcoChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Priority Mix</h3><span>Patients with a priority level</span></div>
+          <div class="chart-wrap"><canvas id="patientPriorityChart"></canvas></div>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-title-row">
+          <div><h3>Patient List</h3><p id="patientCount">0 patients</p></div>
+          <div class="pagination"><button id="patientPrev">Previous</button><span id="patientPageInfo">Page 1</span><button id="patientNext">Next</button></div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr>
+              <th>Patient</th><th>ACO</th><th>Practice</th><th>Provider</th><th>Nurse</th><th>Priority</th><th>Trigger</th><th>Outreach Status</th><th>Last Touch</th><th>Follow-Up</th>
+            </tr></thead>
+            <tbody id="patientTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- INTAKE FORMS -->
+    <section id="intakePage" class="page-section hidden">
+      <div class="page-heading">
+        <div>
+          <h2>Intake Form Tracker</h2>
+          <p>Practice participation, form receipt progress and consultant follow-up.</p>
+        </div>
+      </div>
+
+      <section id="intakeKpis" class="kpi-grid six"></section>
+
+      <section class="filter-panel">
+        <div class="filter-group wide">
+          <label for="intakeSearch">Search Practice</label>
+          <input id="intakeSearch" type="text" placeholder="Search practice, TIN or consultant..." />
+        </div>
+        <div class="filter-group"><label for="intakeAcoFilter">ACO</label><select id="intakeAcoFilter"><option value="All">All ACOs</option></select></div>
+        <div class="filter-group"><label for="intakeConsultantFilter">Consultant</label><select id="intakeConsultantFilter"><option value="All">All Consultants</option></select></div>
+        <div class="filter-group"><label for="intakeStateFilter">Form Status</label><select id="intakeStateFilter"><option value="All">All Form Statuses</option></select></div>
+        <button class="clear-button" id="intakeClear">Clear Filters</button>
+      </section>
+
+      <section class="chart-grid">
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Forms by ACO</h3><span>Received vs outstanding</span></div>
+          <div class="chart-wrap"><canvas id="intakeAcoChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Forms Received by Month</h3><span>Receipt trend</span></div>
+          <div class="chart-wrap"><canvas id="intakeTrendChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>Consultant Practice Load</h3><span>Top consultants by assigned practices</span></div>
+          <div class="chart-wrap"><canvas id="intakeConsultantChart"></canvas></div>
+        </article>
+        <article class="panel chart-panel">
+          <div class="panel-title"><h3>ACO Completion Rate</h3><span>Percent of practices with form received</span></div>
+          <div class="chart-wrap"><canvas id="intakeRateChart"></canvas></div>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-title-row">
+          <div><h3>Intake Form Detail</h3><p id="intakeCount">0 practices</p></div>
+          <div class="pagination"><button id="intakePrev">Previous</button><span id="intakePageInfo">Page 1</span><button id="intakeNext">Next</button></div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>ACO</th><th>Practice</th><th>TIN</th><th>Consultant</th><th>Date Started</th><th>Form Received</th><th>Date Received</th><th>Status</th><th>Notes</th></tr></thead>
+            <tbody id="intakeTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- CALL RECORDS -->
+    <section id="callsPage" class="page-section hidden">
+      <div class="page-heading">
+        <div>
+          <h2>Call Records</h2>
+          <p>Call volume, connectivity, staff activity and talk-time trends.</p>
+        </div>
+      </div>
+
+      <section id="callKpis" class="kpi-grid six"></section>
+
+      <section class="filter-panel call-filters">
+        <div class="filter-group wide"><label for="callSearch">Search Name / Number</label><input id="callSearch" type="text" placeholder="Search caller, recipient or phone number..." /></div>
+        <div class="filter-group"><label for="callStartDate">Start Date</label><input id="callStartDate" type="date" /></div>
+        <div class="filter-group"><label for="callEndDate">End Date</label><input id="callEndDate" type="date" /></div>
+        <div class="filter-group"><label for="callStaffFilter">Staff</label><select id="callStaffFilter"><option value="All">All Staff</option></select></div>
+        <div class="filter-group"><label for="callDirectionFilter">Direction</label><select id="callDirectionFilter"><option value="All">All Directions</option></select></div>
+        <div class="filter-group"><label for="callResponseFilter">Response</label><select id="callResponseFilter"><option value="All">All Responses</option></select></div>
+        <button class="clear-button" id="callClear">Clear Filters</button>
+      </section>
+
+      <section class="chart-grid">
+        <article class="panel chart-panel"><div class="panel-title"><h3>Calls by Staff</h3><span>Inbound + outbound handled</span></div><div class="chart-wrap"><canvas id="callStaffChart"></canvas></div></article>
+        <article class="panel chart-panel"><div class="panel-title"><h3>Daily Call Volume</h3><span>Calls by date</span></div><div class="chart-wrap"><canvas id="callTrendChart"></canvas></div></article>
+        <article class="panel chart-panel"><div class="panel-title"><h3>Call Response</h3><span>Connectivity outcomes</span></div><div class="chart-wrap"><canvas id="callResponseChart"></canvas></div></article>
+        <article class="panel chart-panel"><div class="panel-title"><h3>Connection Rate by Staff</h3><span>Connected or answered calls</span></div><div class="chart-wrap"><canvas id="callRateChart"></canvas></div></article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="table-title-row">
+          <div><h3>Call Detail</h3><p id="callCount">0 calls</p></div>
+          <div class="pagination"><button id="callPrev">Previous</button><span id="callPageInfo">Page 1</span><button id="callNext">Next</button></div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Date & Time</th><th>Staff</th><th>From</th><th>To</th><th>Direction</th><th>Duration</th><th>Response</th><th>Result</th></tr></thead>
+            <tbody id="callTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="detailModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header"><div><p class="eyebrow">DETAIL</p><h2 id="modalTitle">Details</h2></div><button id="modalClose" class="modal-close">×</button></div>
+      <div id="modalBody" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
